@@ -107,20 +107,31 @@ def parse_args() -> argparse.Namespace:
         action="store_true", 
         help="Enable verbose logging"
     )
+    parser.add_argument(
+        "--show-timing", 
+        action="store_true", 
+        help="Show timing information for each step of the min-cut algorithm"
+    )
 
     return parser.parse_args()
 
 
-def setup_logging(verbose: bool) -> None:
+def setup_logging(verbose: bool, show_timing: bool) -> None:
     """
-    Configure logging level based on verbosity.
+    Configure logging level based on verbosity and timing requirements.
     
     Args:
         verbose (bool): Whether to enable verbose logging
+        show_timing (bool): Whether to show timing information
     """
     if verbose:
         logger.setLevel(logging.DEBUG)
         logger.debug("Verbose logging enabled")
+    elif show_timing:
+        # Set INFO level for timing information
+        logger.setLevel(logging.INFO)
+        logging.getLogger('mincut').setLevel(logging.INFO)
+        logger.debug("Timing information enabled")
     else:
         logger.setLevel(logging.INFO)
 
@@ -206,7 +217,7 @@ def main() -> int:
         int: Exit code (0 for success, non-zero for failure)
     """
     args = parse_args()
-    setup_logging(args.verbose)
+    setup_logging(args.verbose, args.show_timing)
     
     try:
         # Parse list arguments
@@ -232,15 +243,14 @@ def main() -> int:
             password=args.password,
             ids_are_node_ids=True
         )
-        print(min_cut)
-        print(f"Found {len(min_cut)} relationships in the min-cut")
-        # Format and display the results
-        # output = format_output(min_cut, args.output_format)
-        # print(output)
         
-        # # Save to file if requested
-        # if args.output_file:
-        #     save_to_file(output, args.output_file)
+        # Format and display the results
+        #output = format_output(min_cut, args.output_format)
+        #print(output)
+        print(f"size of cut: {len(min_cut)}")
+        # Save to file if requested
+        if args.output_file:
+            save_to_file(output, args.output_file)
         
         return 0
     

@@ -145,6 +145,19 @@ def demonstrate_cli(source_id, target_id):
         "--password", PASSWORD
     ]
     subprocess.run(json_cmd)
+    
+    logger.info("\n=== Running min_cut_cli.py with timing information ===")
+    timing_cmd = [
+        "python", "min_cut_cli.py",
+        "--start-node", str(source_id),
+        "--end-node", str(target_id),
+        "--node-labels", "CliDemo",
+        "--relationship-types", "DEMO_REL",
+        "--show-timing",
+        "--username", USERNAME,
+        "--password", PASSWORD
+    ]
+    subprocess.run(timing_cmd)
 
 def cleanup():
     """

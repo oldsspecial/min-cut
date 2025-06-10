@@ -8,6 +8,7 @@ using Neo4j and the Graph Data Science (GDS) library.
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
 import logging
+import time
 
 # Configure logging
 #logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -99,10 +100,16 @@ class MinCutFinder:
         if not self.driver:
             self.connect()
         
+        # Dictionary to store timing information
+        timing = {}
+        start_time_total = time.time()
+        
         try:
             start_node_id = start_node_id.strip()
             end_node_id = end_node_id.strip()
+            
             # Step 1: Find edge-disjoint paths
+            start_time = time.time()
             paths = self._find_edge_disjoint_paths(
                 start_node_id, 
                 end_node_id, 
@@ -110,29 +117,50 @@ class MinCutFinder:
                 node_labels, 
                 max_path_length
             )
+            timing['1. Find edge-disjoint paths'] = time.time() - start_time
             
             if not paths:
                 logger.warning("No paths found between start and end nodes")
                 return []
             
             # Step 2: Extract all relationships from paths
+            start_time = time.time()
             path_relationships = self._extract_relationships_from_paths(paths)
+            timing['2. Extract relationships'] = time.time() - start_time
+            
             # Step 3: Create GDS projection with path relationships removed
+            start_time = time.time()
             projection_name = self._create_gds_projection_without_paths(
                 path_relationships, 
                 relationship_types, 
                 node_labels
             )
+            timing['3. Create GDS projection'] = time.time() - start_time
+            
             # Step 4: Run WCC algorithm
+            start_time = time.time()
             self._run_wcc_algorithm(projection_name)
+            timing['4. Run WCC algorithm'] = time.time() - start_time
+            
             # Step 5: Identify min-cut relationships
+            start_time = time.time()
             min_cut = self._identify_min_cut_relationships(
                  path_relationships, 
                 start_node_id, 
                 end_node_id
             )
+            timing['5. Identify min-cut'] = time.time() - start_time
+            
             # Step 6: Clean up GDS projection
+            start_time = time.time()
             self._drop_gds_projection(projection_name)
+            timing['6. Drop GDS projection'] = time.time() - start_time
+            
+            # Calculate total time
+            timing['Total'] = time.time() - start_time_total
+            
+            # Print timing summary if logging is enabled
+            self._print_timing_summary(timing)
             
             return min_cut
             
@@ -263,6 +291,7 @@ class MinCutFinder:
             WITH a AS source, b as target, type(r) AS type
             """
             query = f"""
+            cypher runtime=parallel
             {project_query}
             WITH gds.graph.project(
                 '{projection_name}',
@@ -334,6 +363,33 @@ class MinCutFinder:
                 logger.info(f"Successfully dropped GDS projection: {projection_name}")
             except Neo4jError as e:
                 logger.warning(f"Failed to drop GDS projection '{projection_name}': {str(e)}")
+    
+    def _print_timing_summary(self, timing):
+        """
+        Print a summary of the execution times for each step of the min-cut algorithm.
+        
+        Args:
+            timing: Dictionary mapping step names to execution times in seconds
+        """
+        # Only print timing information if logging is enabled at INFO level or lower
+        if logger.level <= logging.INFO:
+            total_time = timing.get('Total', 0)
+            if total_time == 0:
+                return
+                
+            print("\n=== Min-Cut Timing Summary ===")
+            print(f"{'Step':<30} {'Time (s)':<10} {'Percentage':<10}")
+            print("-" * 55)
+            
+            # Print each step's timing
+            for step, duration in timing.items():
+                if step != 'Total':
+                    percentage = (duration / total_time) * 100
+                    print(f"{step:<30} {duration:.4f}s    {percentage:.1f}%")
+            
+            # Print total at the end
+            print("-" * 55)
+            print(f"{'Total':<30} {total_time:.4f}s    100.0%\n")
     
     def get_element_id_from_id(self, node_id):
         """
