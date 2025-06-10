@@ -233,6 +233,7 @@ def main() -> int:
             ids_are_node_ids=True
         )
         print(min_cut)
+        print(f"Found {len(min_cut)} relationships in the min-cut")
         # Format and display the results
         # output = format_output(min_cut, args.output_format)
         # print(output)

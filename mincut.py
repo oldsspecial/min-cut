@@ -155,8 +155,7 @@ class MinCutFinder:
             List of paths, where each path is a list of nodes and relationships
         """
         logger.info(f"Finding edge-disjoint paths from node {start_node_id} to {end_node_id}")
-        print(":param start_node_id => '" + start_node_id + "'")
-        print(":param end_node_id => '" + end_node_id + "'")
+        
         # Create relationship pattern for undirected traversal
         # Format: REL1|REL2|...
         rel_pattern = ""
@@ -199,7 +198,7 @@ class MinCutFinder:
             
             paths = [record["path"] for record in result]
             logger.info(f"Found {len(paths)} edge-disjoint paths")
-            print(f"Found {len(paths)} edge-disjoint paths")
+            
             return paths
     
     def _extract_relationships_from_paths(self, paths):
@@ -275,8 +274,7 @@ class MinCutFinder:
             as g 
             RETURN g.graphName AS graph, g.nodeCount AS nodes, g.relationshipCount AS rels
             """
-            print(path_rel_list)
-            print(query)
+
             result = session.run(
                 query,
                 projection_name=projection_name,
