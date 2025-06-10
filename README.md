@@ -33,7 +33,30 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Basic Usage
+### Command-Line Interface
+
+The package includes a command-line utility that allows you to find the minimum cut directly from the command line:
+
+```bash
+# Basic usage
+./min_cut_cli.py --start-node 123 --end-node 456 --node-labels Node --relationship-types CONNECTS
+
+# With Neo4j connection options
+./min_cut_cli.py --start-node 123 --end-node 456 --node-labels Node --relationship-types CONNECTS \
+  --uri bolt://localhost:7687 --username neo4j --password yourpassword
+
+# Using multiple node labels and relationship types
+./min_cut_cli.py --start-node 123 --end-node 456 --node-labels Person,User --relationship-types KNOWS,FOLLOWS \
+  --max-path-length 5
+
+# Output options
+./min_cut_cli.py --start-node 123 --end-node 456 --node-labels Node --relationship-types CONNECTS \
+  --output-format json --output-file results.json
+```
+
+Run `./min_cut_cli.py --help` for a full list of options.
+
+### Python API Usage
 
 ```python
 from mincut import find_min_cut

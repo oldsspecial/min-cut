@@ -221,6 +221,7 @@ class MinCutFinder:
     def get_node_condition(self, variable:str, node_labels:list):
         return ' OR '.join([f'{variable}:{label}' for label in node_labels])
 
+
     def _create_gds_projection_without_paths(
         self, 
         path_relationships, 
@@ -336,6 +337,23 @@ class MinCutFinder:
             except Neo4jError as e:
                 logger.warning(f"Failed to drop GDS projection '{projection_name}': {str(e)}")
     
+    def get_element_id_from_id(self, node_id):
+        """
+        Get the element ID for a given node ID.
+        
+        Args:
+            node_id: ID of the node to query
+            
+        Returns:
+            Element ID of the node
+        """
+        if not self.driver:
+            self.connect()
+        with self.driver.session() as session:
+            query = "MATCH (n) WHERE id(n) = $node_id RETURN elementId(n) AS elementId"
+            result = session.run(query, node_id=node_id)
+            return result.single()["elementId"]
+
     def _get_component_id(self, node_id, projection_name):
         """
         Get the component ID for a given node in the GDS projection.
@@ -406,7 +424,6 @@ class MinCutFinder:
             
             RETURN elementId(r) as rel, elementId(a) as source, elementId(b) as target
             """
-            print("HOPP")
             # We need to batch large lists to avoid query size limits
             batch_size = 1000
             for i in range(0, len(path_rel_list), batch_size):
@@ -435,7 +452,8 @@ def find_min_cut(
     max_path_length=10,
     uri="bolt://localhost:7687",
     user="neo4j",
-    password="password"
+    password="password",
+    ids_are_node_ids=False
 ):
     """
     Find minimum cut between start and end nodes in an undirected graph using edge-disjoint paths.
@@ -454,6 +472,10 @@ def find_min_cut(
         List of relationship IDs that form the minimum cut
     """
     finder = MinCutFinder(uri, user, password)
+    if ids_are_node_ids:
+        start_node_id = finder.get_element_id_from_id(start_node_id)
+        end_node_id = finder.get_element_id_from_id(end_node_id)
+
     try:
         return finder.find_min_cut(
             start_node_id,
