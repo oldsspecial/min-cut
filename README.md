@@ -19,7 +19,6 @@ The implementation finds the minimum cut between two nodes using the following a
 - Graph Data Science (GDS) Library
 - Python 3.6+
 - `neo4j` Python driver
-- `neo4j-gds` Python client
 
 ## Installation
 
