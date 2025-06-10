@@ -69,7 +69,7 @@ def run_example():
             query = """
             MATCH (source:ExampleNode {name: 'A'})
             MATCH (target:ExampleNode {name: 'F'})
-            RETURN id(source) as source_id, id(target) as target_id
+            RETURN elementId(source) as source_id, elementId(target) as target_id
             """
             
             result = session.run(query)
@@ -80,6 +80,7 @@ def run_example():
         
         # Find the min-cut
         print("\nFinding minimum cut between nodes A and F...")
+
         min_cut = finder.find_min_cut(
             source_id,
             target_id,
@@ -110,8 +111,8 @@ def run_example():
         print("\nRemoving these relationships would disconnect A from F with the minimum number of cuts.")
         
         # Clean up
-        with finder.driver.session() as session:
-            session.run("MATCH (n:ExampleNode) DETACH DELETE n")
+        #with finder.driver.session() as session:
+        #    session.run("MATCH (n:ExampleNode) DETACH DELETE n")
         
     except Exception as e:
         print(f"Error: {str(e)}")

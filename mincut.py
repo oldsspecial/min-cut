@@ -10,7 +10,9 @@ from neo4j.exceptions import Neo4jError
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.CRITICAL + 1, format='%(asctime)s - %(levelname)s - %(message)s')
+
 logger = logging.getLogger(__name__)
 
 class MinCutFinder:
@@ -98,6 +100,8 @@ class MinCutFinder:
             self.connect()
         
         try:
+            start_node_id = start_node_id.strip()
+            end_node_id = end_node_id.strip()
             # Step 1: Find edge-disjoint paths
             paths = self._find_edge_disjoint_paths(
                 start_node_id, 
@@ -151,7 +155,8 @@ class MinCutFinder:
             List of paths, where each path is a list of nodes and relationships
         """
         logger.info(f"Finding edge-disjoint paths from node {start_node_id} to {end_node_id}")
-        
+        print(":param start_node_id => '" + start_node_id + "'")
+        print(":param end_node_id => '" + end_node_id + "'")
         # Create relationship pattern for undirected traversal
         # Format: REL1|REL2|...
         rel_pattern = ""
@@ -168,7 +173,7 @@ class MinCutFinder:
             label_pattern = "|".join(node_labels)
         else:
             label_pattern = ""  # Any node
-        
+    
         with self.driver.session() as session:
             query = """
             MATCH (start) WHERE elementId(start) = $start_id
@@ -182,8 +187,7 @@ class MinCutFinder:
             })
             YIELD path
             RETURN path
-            """
-            
+            """            
             result = session.run(
                 query,
                 start_id=start_node_id,
@@ -195,7 +199,7 @@ class MinCutFinder:
             
             paths = [record["path"] for record in result]
             logger.info(f"Found {len(paths)} edge-disjoint paths")
-            
+            print(f"Found {len(paths)} edge-disjoint paths")
             return paths
     
     def _extract_relationships_from_paths(self, paths):
@@ -209,7 +213,7 @@ class MinCutFinder:
         
         for path in paths:
             for rel in path.relationships:
-                relationship_ids.add(rel.id)
+                relationship_ids.add(rel.element_id)
         
         logger.info(f"Extracted {len(relationship_ids)} unique relationships from paths")
         return relationship_ids
@@ -242,7 +246,7 @@ class MinCutFinder:
         with self.driver.session() as session:
 
             # Convert path relationships to a list and ensure they are integers
-            path_rel_list = [int(rel_id) for rel_id in path_relationships] if path_relationships else []
+            path_rel_list = [rel_id for rel_id in path_relationships] if path_relationships else []
             
             rel_conditions = []
             if relationship_types:
@@ -252,7 +256,8 @@ class MinCutFinder:
             # Build relationship query that excludes the path relationships
            
             project_query = f"""
-            MATCH (a)-[r]->(b)
+            MATCH (a) 
+            OPTIONAL MATCH (a)-[r]->(b)
             WHERE ({self.get_node_condition('a', node_labels)}) AND ({self.get_node_condition('b', node_labels)}) AND ({rel_type_condition})
             AND NOT elementId(r) IN $excluded_rel_ids
             WITH a AS source, b as target, type(r) AS type
@@ -269,14 +274,15 @@ class MinCutFinder:
             as g 
             RETURN g.graphName AS graph, g.nodeCount AS nodes, g.relationshipCount AS rels
             """
-            
+            print(path_rel_list)
+            print(query)
             result = session.run(
                 query,
                 projection_name=projection_name,
                 excluded_rel_ids=path_rel_list
             )
             r = result.single()
-            logger.info(r.consume())
+            logger.info(r.values())
             logger.info(f"Created GDS projection: {projection_name}")
             
             return projection_name
@@ -304,6 +310,11 @@ class MinCutFinder:
             result = session.run(query, projection_name=projection_name)
             component_count = result.single()["componentCount"]
             logger.info(f"WCC algorithm found {component_count} components")
+            if not component_count > 1:
+                logger.warning("WCC algorithm found only one component, no min-cut exists")
+                raise ValueError("No min-cut exists between the specified nodes")
+
+            print(f"WCC algorithm found {component_count} components")
             
            
     
@@ -338,7 +349,8 @@ class MinCutFinder:
         """
         with self.driver.session() as session:
             query = """
-            RETURN gds.util.nodeProperty($projection_name, $node_id, 'componentId') AS componentId
+            match (n) where elementId(n) = $node_id
+            RETURN gds.util.nodeProperty($projection_name, n, 'componentId') AS componentId
             """
             result = session.run(query, projection_name=projection_name, node_id=node_id)
             return result.single()["componentId"]
@@ -362,7 +374,7 @@ class MinCutFinder:
         # Find relationships that cross between components
         min_cut_relationships = []
         start_component = self._get_component_id(start_node_id, projection_name)
-        end_componenet = self._get_component_id(end_node_id, projection_name)
+        end_component = self._get_component_id(end_node_id, projection_name)
 
         if start_component is None:
             logger.error(f"Start node {start_node_id} not found in component mapping")
@@ -381,18 +393,18 @@ class MinCutFinder:
             logger.info(f"Start component: {start_component}, End component: {end_component}")
 
             # Convert relationship IDs to integers for consistency
-            path_rel_list = [int(rel_id) for rel_id in path_relationships]
+            path_rel_list = [rel_id for rel_id in path_relationships]
             
             # Find edges that cross between components more efficiently
             # by directly querying the projection's component IDs
             query = f"""
             MATCH (a)-[r]->(b) 
             WHERE elementId(r) IN $rel_ids AND
-            gds.util.nodeProperty({min_cut_projection}, a, 'componentId') in [$start_component, $end_component] AND
-            gds.util.nodeProperty({min_cut_projection}, b, 'componentId') in [$start_component, $end_component] AND
-            gds.util.nodeProperty({min_cut_projection}, a, 'componentId') <> gds.util.nodeProperty({min_cut_projection}, b, 'componentId')
+            gds.util.nodeProperty('{projection_name}', a, 'componentId') in [$start_component, $end_component] AND
+            gds.util.nodeProperty('{projection_name}', b, 'componentId') in [$start_component, $end_component] AND
+            gds.util.nodeProperty('{projection_name}', a, 'componentId') <> gds.util.nodeProperty('{projection_name}', b, 'componentId')
             
-            RETURN rel_id, source_id, target_id, rel_type
+            RETURN elementId(r) as rel, elementId(a) as source, elementId(b) as target
             """
             print("HOPP")
             # We need to batch large lists to avoid query size limits
@@ -409,10 +421,9 @@ class MinCutFinder:
                 
                 for record in result:
                     min_cut_relationships.append({
-                        "id": record["rel_id"],
-                        "source": record["source_id"],
-                        "target": record["target_id"],
-                        "type": record["rel_type"]})
+                        "id": record["rel"],
+                        "source": record["source"],
+                        "target": record["target"]})
         logger.info(f"Identified {len(min_cut_relationships)} relationships in the min-cut")
         return min_cut_relationships
 
