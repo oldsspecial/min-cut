@@ -472,9 +472,10 @@ class MinCutFinder:
             query = f"""
             MATCH (a)-[r]->(b) 
             WHERE elementId(r) IN $rel_ids AND
-            gds.util.nodeProperty('{projection_name}', a, 'componentId') in [$start_component, $end_component] AND
-            gds.util.nodeProperty('{projection_name}', b, 'componentId') in [$start_component, $end_component] AND
             gds.util.nodeProperty('{projection_name}', a, 'componentId') <> gds.util.nodeProperty('{projection_name}', b, 'componentId')
+            AND
+            (gds.util.nodeProperty('{projection_name}', a, 'componentId') = $start_component OR
+            gds.util.nodeProperty('{projection_name}', b, 'componentId') = $start_component)
             
             RETURN elementId(r) as rel, elementId(a) as source, elementId(b) as target
             """
